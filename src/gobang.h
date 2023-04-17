@@ -6,7 +6,7 @@
 #define POSITION(x, y) ((x) * BOARD_SIZE + (y)) 
 #define XPOS(pos) ((pos) / BOARD_SIZE)
 #define YPOS(pos) ((pos) % BOARD_SIZE)
-#define IS_SAME_TYPE(chess, type) (chess != 0 && ((type == BLACK && chess > 0) || (type == WHITE && chess < 0)))
+#define IS_SAME_TYPE(chess, type) (chess != 0 && ((type == BC && chess > 0) || (type == WC && chess < 0)))
 #define OPP(type) (ChessType(-type))
 #define IN_BOARD(xpos, ypos) (xpos >= 0 && xpos < BOARD_SIZE && ypos >= 0 && ypos < BOARD_SIZE)
 
@@ -17,7 +17,6 @@
 	}\
 	std::cout<<std::endl;
 
-// #include "boardUnit.h"
 #include <vector>
 #include <array>
 #include <set>
@@ -36,7 +35,7 @@ void set_intersection(std::set<T> & src, const std::set<T> & set){
 // extern class BoardUnit;
 
 enum ChessType{
-	ZERO = 0, BLACK = 1, WHITE = -1
+	ZERO = 0, BC = 1, WC = -1
 };
 
 struct BoardUnit{

@@ -27,6 +27,9 @@ Gobang::Gobang(ChessType player){
 		}
 	}
 	init_fiveTuples();
+	if(computer == BC){
+		openlist.insert(POSITION(BOARD_SIZE / 2, BOARD_SIZE / 2));
+	}
 }
 
 void Gobang::init_fiveTuples(){
@@ -86,11 +89,11 @@ int Gobang::fiveTuple_index(const FiveTuple& fiveTuple){
 }
 
 bool Gobang::check_win(ChessType type, int xpos, int ypos){
-	assert(type == BLACK || type == WHITE);
+	assert(type == BC || type == WC);
 	assert(xpos >= 0 && xpos < BOARD_SIZE && ypos >= 0 && ypos < BOARD_SIZE);
 	auto judge = [type, this](int p) {
-		return type == BLACK && board[XPOS(p)][YPOS(p)] > 0 
-		|| type == WHITE && board[XPOS(p)][YPOS(p)] < 0;
+		return type == BC && board[XPOS(p)][YPOS(p)] > 0 
+		|| type == WC && board[XPOS(p)][YPOS(p)] < 0;
 	}; 
 	int pos = POSITION(xpos, ypos);
 	for(int index : boardUnits[pos].tuple_index){
@@ -134,7 +137,7 @@ std::set<int> Gobang::extend_openlist(int xpos, int ypos){
 
 
 int Gobang::evaluation(ChessType type){
-	assert(type == WHITE || type == BLACK);
+	assert(type == WC || type == BC);
 	int value = 0;
 	for(auto & [_, tuple] : fiveTuples){
 		int n = 0;
@@ -182,23 +185,24 @@ int Gobang::greedy_select(){
 }
 
 bool Gobang::fall(ChessType type, int xpos, int ypos){
-	assert(type == BLACK || type == WHITE);
+	assert(type == BC || type == WC);
 	assert(xpos >= 0 && xpos < BOARD_SIZE && ypos >= 0 && ypos < BOARD_SIZE);
 	if(0 != board[xpos][ypos]){
 		return false;
 	}
 	fill_board(type, xpos, ypos);
 	extend_openlist(xpos, ypos);
+	// DEBUG_OPENLIST(openlist);
 	return true;
 }
 
 void Gobang::fill_board(ChessType type, int xpos, int ypos){
-	assert(type == WHITE || type == BLACK);
+	assert(type == WC || type == BC);
 	assert(IN_BOARD(xpos, ypos));
 	assert(0 == board[xpos][ypos]);
 	board[xpos][ypos] = order * type;
 	// std::cout<<board[xpos][ypos]<<std::endl;
-	if(type == WHITE){
+	if(type == WC){
 		++order;
 	}
 }
@@ -268,7 +272,7 @@ int Gobang::minmax_select(int pre_pos){
 	minmax(3, node, INT_MIN, INT_MAX);
 	auto end_time = std::chrono::steady_clock::now();
   	auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
- 	std::cout << "Minmax search 3 depth, "<<ms<<" ms consume"<<std::endl;
+ 	std::cout <<"Minmax search 3 depth, "<<ms<<" ms consume"<<std::endl;
 	return node.next_best;
 }
 
@@ -294,7 +298,7 @@ void Gobang::print(){
 }
 
 void Gobang::run(){
-	ChessType cur = BLACK;
+	ChessType cur = BC;
 	int fall_pos;
 	while(true){
 		print();
