@@ -136,7 +136,7 @@ std::set<int> Gobang::extend_openlist(int xpos, int ypos){
 
 
 
-int Gobang::evaluation(ChessType type){
+int Gobang::total_evaluate(ChessType type){
 	assert(type == WC || type == BC);
 	int value = 0;
 	for(auto & [_, tuple] : fiveTuples){
@@ -164,6 +164,27 @@ int Gobang::evaluation(ChessType type){
 	return value;
 }
 
+int Gobang::pos_evaluate(ChessType chessType, int xpos, int ypos){
+	int eva = 0;
+	for(int index : boardUnits[POSITION(xpos, ypos)].tuple_index){
+		eva += tuple_evaluate(chessType, fiveTuples[index]);
+	}
+	return eva;
+}
+
+int Gobang::tuple_evaluate(ChessType chessType, const FiveTuple & fiveTuple){
+	int n = 0;
+	for(int i = 0; i < 5; ++i){
+		if(IS_SAME_TYPE(board[XPOS(fiveTuple[i])][YPOS(fiveTuple[i])], chessType)){
+			++n;
+		}else if(IS_SAME_TYPE(board[XPOS(fiveTuple[i])][YPOS(fiveTuple[i])], OPP(chessType))){
+			n = 0;
+			break;
+		}
+	}
+	return shape_score[n];
+}
+
 int Gobang::greedy_select(){
 	int res = 0;
 	int max = INT_MIN;
@@ -171,7 +192,7 @@ int Gobang::greedy_select(){
 	for(int pos : openlist){
 		assert(0 == board[XPOS(pos)][YPOS(pos)]);
 		board[XPOS(pos)][YPOS(pos)] = order * computer;
-		int h1 = evaluation(computer), h2 =  evaluation(player);
+		int h1 = total_evaluate(computer), h2 =  total_evaluate(player);
 		int h = h1 - h2;
 		// std::cout<<"("<<XPOS(pos)<<","<<YPOS(pos)<<","<<h1<<","<<h2<<") ";
 		if(h > max){
@@ -216,10 +237,9 @@ void Gobang::unfill_board_back(int xpos, int ypos){
 	board[xpos][ypos] = 0;
 }
 
-void Gobang::minmax(int depth, MinmaxNode & node, int alpha, int beta){
+void Gobang::minmax_v1(int depth, MinmaxNode & node, int alpha, int beta){
 	if(depth == 0 || check_win(node.type, XPOS(node.pos), YPOS(node.pos))){
-		int v1 = evaluation(computer), v2 = evaluation(player);
-		node.value = v1 - v2;
+		node.value = total_evaluate(computer) - total_evaluate(player);
 		return;
 	}
 	std::vector<int> list(openlist.begin(), openlist.end());
@@ -231,7 +251,7 @@ void Gobang::minmax(int depth, MinmaxNode & node, int alpha, int beta){
 			MinmaxNode snode(OPP(node.type), pos);
 			// the next node is MAX
 			// for MAX, beta equals parent's beta
-			minmax(depth - 1, snode, INT_MIN, beta);
+			minmax_v1(depth - 1, snode, INT_MIN, beta);
 			// traceback
 			unfill_board_back(XPOS(pos), YPOS(pos));
 			openlist = oldlist;
@@ -250,7 +270,7 @@ void Gobang::minmax(int depth, MinmaxNode & node, int alpha, int beta){
 			fill_board(OPP(node.type), XPOS(pos), YPOS(pos));
 			std::set<int> oldlist = extend_openlist(XPOS(pos), YPOS(pos));
 			MinmaxNode snode(OPP(node.type), pos);
-			minmax(depth - 1, snode, alpha, INT_MAX);
+			minmax_v1(depth - 1, snode, alpha, INT_MAX);
 			// traceback
 			unfill_board_back(XPOS(pos), YPOS(pos));
 			openlist = oldlist;
@@ -266,13 +286,73 @@ void Gobang::minmax(int depth, MinmaxNode & node, int alpha, int beta){
 	}
 }
 
+void Gobang::minmax_v2(int depth, MinmaxNode & node, int alpha, int beta){
+	if(depth == 0 || check_win(node.type, XPOS(node.pos), YPOS(node.pos))){
+		node.value = node.evalue;
+		return;
+	}
+	std::vector<int> list(openlist.begin(), openlist.end());
+	std::vector<MinmaxNode> subnodes;
+	for(int pos : list){
+		int peva = pos_evaluate(computer, XPOS(pos), YPOS(pos)) - pos_evaluate(player, XPOS(pos), YPOS(pos));
+		fill_board(OPP(node.type), XPOS(pos), YPOS(pos));
+		int neva = pos_evaluate(computer, XPOS(pos), YPOS(pos)) - pos_evaluate(player, XPOS(pos), YPOS(pos));
+		unfill_board_back(XPOS(pos), YPOS(pos));
+		MinmaxNode snode(OPP(node.type), pos);
+		snode.evalue = node.evalue + (neva - peva);
+		subnodes.push_back(snode);
+	}
+	std::sort(subnodes.begin(), subnodes.end());
+	int size = subnodes.size();
+	int n = std::min(10, size);
+	if(node.type == computer){ // MIN
+		node.value = INT_MAX;
+		for(int i = 0; i < n; ++i){
+			fill_board(subnodes[i].type, XPOS(subnodes[i].pos), YPOS(subnodes[i].pos));
+			std::set<int> oldlist = extend_openlist(XPOS(subnodes[i].pos), YPOS(subnodes[i].pos));
+			minmax_v2(depth - 1, subnodes[i], INT_MIN, beta);
+			unfill_board_back(XPOS(subnodes[i].pos), YPOS(subnodes[i].pos));
+			openlist = oldlist;
+			if((node.value > subnodes[i].value)){
+				node.value = subnodes[i].value;
+				node.next_best = subnodes[i].pos;
+			}
+			beta = std::min(beta, node.value);
+			if(beta < alpha){
+				break;
+			}
+		}
+	}else if(node.type == player){  //MAX
+		node.value = INT_MIN;
+		for(int i = 1; i <= n; ++i){
+			fill_board(subnodes[size - i].type, XPOS(subnodes[size - i].pos), YPOS(subnodes[size - i].pos));
+			std::set<int> oldlist = extend_openlist(XPOS(subnodes[size - i].pos), YPOS(subnodes[size - i].pos));
+			minmax_v2(depth - 1, subnodes[size - i], alpha, INT_MAX);
+			// traceback
+			unfill_board_back(XPOS(subnodes[size - i].pos), YPOS(subnodes[size - i].pos));
+			openlist = oldlist;
+			if((node.value < subnodes[size - i].value)){
+				node.value = subnodes[size - i].value;
+				node.next_best = subnodes[size - i].pos;
+			}
+			alpha = std::max(alpha, node.value);
+			if(alpha > beta){
+				break;
+			}
+		}
+	}
+}
+
 int Gobang::minmax_select(int pre_pos){
-	MinmaxNode node(player, pre_pos);
+	int depth = 6;
 	auto start_time = std::chrono::steady_clock::now();
-	minmax(3, node, INT_MIN, INT_MAX);
+	MinmaxNode node(player, pre_pos);
+	node.evalue = total_evaluate(computer) - total_evaluate(player);
+	// minmax_v1(depth, node, INT_MIN, INT_MAX);
+	minmax_v2(depth, node, INT_MIN, INT_MAX);
 	auto end_time = std::chrono::steady_clock::now();
   	auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
- 	std::cout <<"Minmax search 3 depth, "<<ms<<" ms consume"<<std::endl;
+ 	std::cout <<"Minmax search "<<depth<<" depth, "<<ms<<" ms consume"<<std::endl;
 	return node.next_best;
 }
 

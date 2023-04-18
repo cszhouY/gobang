@@ -47,10 +47,14 @@ struct MinmaxNode{
 	ChessType type; // 
 	int pos;
 	int value;
+	int evalue;
 	int next_best;
 	MinmaxNode(ChessType type, int pos): type(type), pos(pos){}
 	bool operator < (const MinmaxNode & node) const {
-		return value < node.value;
+		return evalue < node.evalue;
+	}
+	bool operator > (const MinmaxNode & node) const {
+		return evalue > node.evalue;
 	}
 };
 
@@ -64,9 +68,13 @@ public:
 	void unfill_board_back(int xpos, int ypos);
 	std::vector<int> neighbor(int xpos, int ypos, int step);
 	std::set<int> extend_openlist(int xpos, int ypos);
-	int evaluation(ChessType type);
+	int total_evaluate(ChessType type);
+	int pos_evaluate(ChessType type, int xpos, int ypos);
+	int tuple_evaluate(ChessType type, const FiveTuple & fiveTuple);
+	int pos_evaluate_inc(ChessType type, int xpos, int ypos);
 	int greedy_select();
-	void minmax(int depth, MinmaxNode & node, int alpha, int beta);
+	void minmax_v1(int depth, MinmaxNode & node, int alpha, int beta);
+	void minmax_v2(int depth, MinmaxNode & node, int alpha, int beta);
 	int minmax_select(int pre_pos);
 	void print();
 	void run();
