@@ -27,6 +27,7 @@ Gobang::Gobang(ChessType player){
 		}
 	}
 	init_fiveTuples();
+	init_zobristBoard();
 	if(computer == BC){
 		openlist.insert(POSITION(BOARD_SIZE / 2, BOARD_SIZE / 2));
 	}
@@ -86,6 +87,18 @@ void Gobang::init_fiveTuples(){
 
 int Gobang::fiveTuple_index(const FiveTuple& fiveTuple){
 	return (fiveTuple[0] << 8) + fiveTuple[4];
+}
+
+void Gobang::init_zobristBoard(){
+	cur_zobrist = 0;
+	for(int i = 0; i < BOARD_SIZE; ++i){
+		for(int j = 0; j < BOARD_SIZE; ++j){
+			zobristBoard[i][j].zWhite = RAND_64();
+			zobristBoard[i][j].zBlack = RAND_64();
+			zobristBoard[i][j].zZero = RAND_64();
+			cur_zobrist ^= zobristBoard[i][j].zZero;
+		}
+	}
 }
 
 bool Gobang::check_win(ChessType type, int xpos, int ypos){
@@ -226,11 +239,23 @@ void Gobang::fill_board(ChessType type, int xpos, int ypos){
 	if(type == WC){
 		++order;
 	}
+	// update current zobrist hash value
+	if(type == WC){
+		cur_zobrist ^= zobristBoard[xpos][ypos].zZero ^ zobristBoard[xpos][ypos].zWhite;
+	}else{
+		cur_zobrist ^= zobristBoard[xpos][ypos].zZero ^ zobristBoard[xpos][ypos].zBlack;
+	}
 }
 
 void Gobang::unfill_board_back(int xpos, int ypos){
 	assert(IN_BOARD(xpos, ypos));
 	assert(0 != board[xpos][ypos]);
+	// recover current zobrist hash value
+	if(IS_SAME_TYPE(board[xpos][ypos], WC)){
+		cur_zobrist ^= zobristBoard[xpos][ypos].zWhite ^ zobristBoard[xpos][ypos].zZero;
+	}else{
+		cur_zobrist ^= zobristBoard[xpos][ypos].zBlack ^ zobristBoard[xpos][ypos].zZero;
+	}
 	if(board[xpos][ypos] < 0){
 		--order;
 	}
@@ -294,13 +319,29 @@ void Gobang::minmax_v2(int depth, MinmaxNode & node, int alpha, int beta){
 	std::vector<int> list(openlist.begin(), openlist.end());
 	std::vector<MinmaxNode> subnodes;
 	for(int pos : list){
+// #define ZOBRIST
+#ifdef ZOBRIST
+		fill_board(OPP(node.type), XPOS(pos), YPOS(pos));
+		__int64 nZob = cur_zobrist;
+		int evalue = node.evalue;
+		if(evalMap.count(nZob) != 0){
+			unfill_board_back(XPOS(pos), YPOS(pos));
+			evalue = evalMap[nZob];
+		}else{
+			int neva = pos_evaluate(computer, XPOS(pos), YPOS(pos)) - pos_evaluate(player, XPOS(pos), YPOS(pos));
+			unfill_board_back(XPOS(pos), YPOS(pos));
+			int peva = pos_evaluate(computer, XPOS(pos), YPOS(pos)) - pos_evaluate(player, XPOS(pos), YPOS(pos));
+			evalue += neva - peva;
+			evalMap[nZob] = evalue;
+		}
+		subnodes.emplace_back(OPP(node.type), pos, evalue);
+#else
 		int peva = pos_evaluate(computer, XPOS(pos), YPOS(pos)) - pos_evaluate(player, XPOS(pos), YPOS(pos));
 		fill_board(OPP(node.type), XPOS(pos), YPOS(pos));
 		int neva = pos_evaluate(computer, XPOS(pos), YPOS(pos)) - pos_evaluate(player, XPOS(pos), YPOS(pos));
 		unfill_board_back(XPOS(pos), YPOS(pos));
-		MinmaxNode snode(OPP(node.type), pos);
-		snode.evalue = node.evalue + (neva - peva);
-		subnodes.push_back(snode);
+		subnodes.emplace_back(OPP(node.type), pos, node.evalue + (neva - peva));
+#endif
 	}
 	std::sort(subnodes.begin(), subnodes.end());
 	int size = subnodes.size();

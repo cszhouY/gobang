@@ -10,6 +10,8 @@
 #define OPP(type) (ChessType(-type))
 #define IN_BOARD(xpos, ypos) (xpos >= 0 && xpos < BOARD_SIZE && ypos >= 0 && ypos < BOARD_SIZE)
 
+#define RAND_64() (__int64)(((__int64)rand() << 48) | ((__int64)rand() << 32) | ((__int64)rand() << 16) | ((__int64)rand()))
+
 #define DEBUG_OPENLIST(set) \
 	std::cout<<"openlist: ";\
 	for(int pos : set){\
@@ -43,6 +45,10 @@ struct BoardUnit{
 	std::vector<int> tuple_index;
 };
 
+struct Zobrist{
+	__int64 zBlack, zWhite, zZero;
+};
+
 struct MinmaxNode{
 	ChessType type; // 
 	int pos;
@@ -50,6 +56,7 @@ struct MinmaxNode{
 	int evalue;
 	int next_best;
 	MinmaxNode(ChessType type, int pos): type(type), pos(pos){}
+	MinmaxNode(ChessType type, int pos, int evalue): type(type), pos(pos), evalue(evalue) {}
 	bool operator < (const MinmaxNode & node) const {
 		return evalue < node.evalue;
 	}
@@ -81,14 +88,18 @@ public:
 private:
 	void init_fiveTuples();
 	int fiveTuple_index(const FiveTuple& fiveTuple);
+	void init_zobristBoard();
 private:
 	std::vector<BoardUnit> boardUnits;
 	std::unordered_map<int, FiveTuple> fiveTuples;
 	std::array<std::array<int, BOARD_SIZE>, BOARD_SIZE> board;
+	std::unordered_map<__int64, int> evalMap;
+	std::array<std::array<Zobrist, BOARD_SIZE>, BOARD_SIZE> zobristBoard;
 	std::array<int, 6> shape_score{0, 1, 20, 600, 4000, 1000000};
 	std::set<int> openlist;
 	ChessType player, computer;
 	int order;
+	__int64 cur_zobrist;
 };
 
 #endif

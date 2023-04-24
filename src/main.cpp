@@ -2,7 +2,7 @@
 * @Author: Zhou Yee
 * @Date:   2023-04-09 21:16:54
 * @Last Modified by:   zy
-* @Last Modified time: 2023-04-18 21:13:32
+* @Last Modified time: 2023-04-24 10:23:31
 */
 #include "gobang.h"
 #include "gobangWidget.h"
@@ -12,7 +12,7 @@
 #include <ctime>
 #include <assert.h>
 
-#define GRAPHICAL
+// #define GRAPHICAL
 
 int main(int argc, char const *argv[])
 {
