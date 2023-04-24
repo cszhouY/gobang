@@ -312,7 +312,12 @@ void Gobang::minmax_v1(int depth, MinmaxNode & node, int alpha, int beta){
 }
 
 void Gobang::minmax_v2(int depth, MinmaxNode & node, int alpha, int beta){
-	if(depth == 0 || check_win(node.type, XPOS(node.pos), YPOS(node.pos))){
+	if(check_win(node.type, XPOS(node.pos), YPOS(node.pos))){
+		node.value = node.evalue;
+		node.win = node.type;
+		return;
+	}
+	if(depth == 0){
 		node.value = node.evalue;
 		return;
 	}
@@ -357,6 +362,7 @@ void Gobang::minmax_v2(int depth, MinmaxNode & node, int alpha, int beta){
 			if((node.value > subnodes[i].value)){
 				node.value = subnodes[i].value;
 				node.next_best = subnodes[i].pos;
+				node.win = subnodes[i].win;
 			}
 			beta = std::min(beta, node.value);
 			if(beta < alpha){
@@ -375,6 +381,7 @@ void Gobang::minmax_v2(int depth, MinmaxNode & node, int alpha, int beta){
 			if((node.value < subnodes[size - i].value)){
 				node.value = subnodes[size - i].value;
 				node.next_best = subnodes[size - i].pos;
+				node.win = subnodes[size - i].win;
 			}
 			alpha = std::max(alpha, node.value);
 			if(alpha > beta){
@@ -395,6 +402,24 @@ int Gobang::minmax_select(int pre_pos){
   	auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
  	std::cout <<"Minmax search "<<depth<<" depth, "<<ms<<" ms consume"<<std::endl;
 	return node.next_best;
+}
+
+int Gobang::iteration_deeping_search(int pre_pos){
+	MinmaxNode node(player, pre_pos);
+	node.evalue = total_evaluate(computer) - total_evaluate(player);
+	// iteration deeping search
+	for(int d = 2; d <= MINMAX_DEPTH; d += 2){
+		auto start_time = std::chrono::steady_clock::now();
+		minmax_v2(d, node, INT_MIN, INT_MAX);
+		if(computer == node.win){
+			break;
+		}
+		auto end_time = std::chrono::steady_clock::now();
+		auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+		std::cout <<"Iteration deeping search "<<d<<" depth, "<<ms<<" ms consume"<<std::endl;
+	}
+	std::cout<<"Computer fall (" << XPOS(node.next_best) << "," <<YPOS(node.next_best) << ")" <<std::endl;
+  	return node.next_best;
 }
 
 void Gobang::print(){
@@ -429,7 +454,8 @@ void Gobang::run(){
 			fall_pos = POSITION(x, y);
 		}else{
 			// fall_pos = greedy_select();
-			fall_pos = minmax_select(fall_pos);
+			// fall_pos = minmax_select(fall_pos);
+			fall_pos = iteration_deeping_search(fall_pos);
 		}
 		fall(cur, XPOS(fall_pos), YPOS(fall_pos));
 		if(check_win(cur, XPOS(fall_pos), YPOS(fall_pos))){

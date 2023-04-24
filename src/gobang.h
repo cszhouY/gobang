@@ -3,6 +3,8 @@
 
 #define BOARD_SIZE 15
 
+#define MINMAX_DEPTH 6
+
 #define POSITION(x, y) ((x) * BOARD_SIZE + (y)) 
 #define XPOS(pos) ((pos) / BOARD_SIZE)
 #define YPOS(pos) ((pos) % BOARD_SIZE)
@@ -55,8 +57,9 @@ struct MinmaxNode{
 	int value;
 	int evalue;
 	int next_best;
-	MinmaxNode(ChessType type, int pos): type(type), pos(pos){}
-	MinmaxNode(ChessType type, int pos, int evalue): type(type), pos(pos), evalue(evalue) {}
+	ChessType win;
+	MinmaxNode(ChessType type, int pos): type(type), pos(pos), win(ZERO){}
+	MinmaxNode(ChessType type, int pos, int evalue): type(type), pos(pos), evalue(evalue), win(ZERO){}
 	bool operator < (const MinmaxNode & node) const {
 		return evalue < node.evalue;
 	}
@@ -83,6 +86,7 @@ public:
 	void minmax_v1(int depth, MinmaxNode & node, int alpha, int beta);
 	void minmax_v2(int depth, MinmaxNode & node, int alpha, int beta);
 	int minmax_select(int pre_pos);
+	int iteration_deeping_search(int pre_pos);
 	void print();
 	void run();
 private:
