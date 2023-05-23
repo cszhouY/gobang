@@ -101,6 +101,88 @@ void Gobang::init_zobristBoard(){
 	}
 }
 
+ShapeType Gobang::tuple_shape_type(ChessType chessType, const FiveTuple & fiveTuple) {
+	int n = 0;
+	for(int i = 0; i < 5; ++i){
+		if(IS_SAME_TYPE(board[XPOS(fiveTuple[i])][YPOS(fiveTuple[i])], chessType)){
+			++n;
+		}else if(IS_SAME_TYPE(board[XPOS(fiveTuple[i])][YPOS(fiveTuple[i])], OPP(chessType))){
+			n = -1;  
+			break;
+		}
+	}
+	ShapeType shapeType;
+	int dx = 0;
+	int dy = 0;
+	switch(n) {
+	case -1:
+	case 0:
+		shapeType = T_NO;
+		break;
+	case 1: 
+		shapeType = T_ONE;
+		break;
+	case 2: 
+		shapeType = T_TWO;
+		break;
+	case 3: 
+		if(0 == board[XPOS(fiveTuple[0])][YPOS(fiveTuple[0])] 
+			&& 0 == board[XPOS(fiveTuple[4])][YPOS(fiveTuple[4])]){
+			shapeType = T_LTHR;
+		}else{
+			shapeType = T_STHR;
+		}
+		break;
+	case 4: 
+		dx =  (XPOS(fiveTuple[4]) - XPOS(fiveTuple[0])) / 5;
+		dy = (YPOS(fiveTuple[4]) - YPOS(fiveTuple[0])) / 5;
+		if((IN_BOARD(XPOS(fiveTuple[0]) - dx, YPOS(fiveTuple[0]) - dy) 
+			&& 0 == board[XPOS(fiveTuple[4])][YPOS(fiveTuple[4])]) 
+			|| (IN_BOARD(XPOS(fiveTuple[4]) + dx, YPOS(fiveTuple[4]) + dy) 
+			&& 0 == board[XPOS(fiveTuple[0])][YPOS(fiveTuple[0])])) {
+				shapeType = T_LFOUR;
+			}else{
+				shapeType = T_CFOUR;
+			}
+		break;
+	case 5: 
+		shapeType = T_FIVE;
+		break;
+	default: 
+		assert(0);
+	}
+	return shapeType;
+}
+
+bool Gobang::is_kill_pos(ChessType chessType, int xpos, int ypos) {
+	assert(chessType == BC ||chessType == WC);
+	assert(IN_BOARD(xpos, ypos));
+	int pos = POSITION(xpos, ypos);
+	for(int index : boardUnits[pos].tuple_index) {
+		ShapeType shapeType = tuple_shape_type(chessType, fiveTuples[index]);
+		if(T_LTHR == shapeType || T_CFOUR == shapeType || T_LFOUR == shapeType || T_FIVE == shapeType) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool Gobang::is_defend_pos(ChessType chessType, int xpos, int ypos) {
+	assert(chessType == BC ||chessType == WC);
+	assert(IN_BOARD(xpos, ypos));
+	board[xpos][ypos] = - board[xpos][ypos];
+	int pos = POSITION(xpos, ypos);
+	for(int index : boardUnits[pos].tuple_index) {
+		ShapeType shapeType = tuple_shape_type(OPP(chessType), fiveTuples[index]);
+		if(T_LFOUR == shapeType || T_FIVE == shapeType) {
+			board[xpos][ypos] = - board[xpos][ypos];  // recover 
+			return true;
+		}
+	}
+	board[xpos][ypos] = - board[xpos][ypos];  // recover
+	return false;
+}
+
 bool Gobang::check_win(ChessType type, int xpos, int ypos){
 	assert(type == BC || type == WC);
 	assert(xpos >= 0 && xpos < BOARD_SIZE && ypos >= 0 && ypos < BOARD_SIZE);
@@ -149,31 +231,12 @@ std::set<int> Gobang::extend_openlist(int xpos, int ypos){
 
 
 
-int Gobang::total_evaluate(ChessType type){
-	assert(type == WC || type == BC);
+int Gobang::total_evaluate(ChessType chessType){
+	assert(chessType == WC || chessType == BC);
 	int value = 0;
 	for(auto & [_, tuple] : fiveTuples){
-		int n = 0;
-		// count the same type chess
-		for(int i = 0; i < 5; ++i){
-			if(IS_SAME_TYPE(board[XPOS(tuple[i])][YPOS(tuple[i])], type)){
-				++n;
-			}else if(IS_SAME_TYPE(board[XPOS(tuple[i])][YPOS(tuple[i])], OPP(type))){
-				n = 0;
-				break;
-			}
-		}
-		// std::cout<<n;
-		value += shape_score[n];
-		// std::cout<<value<<std::endl;
-		// if(n > 0){
-		// 	for(int i = 0; i < 5 ; ++i){
-		// 		std::cout<<"("<<XPOS(tuple[i])<<","<<YPOS(tuple[i])<<")";
-		// 	}
-		// 	std::cout<<"type"<<type<<" "<<n<<std::endl;
-		// }
+		value += tuple_evaluate(chessType, tuple);
 	}
-	// system("pause");
 	return value;
 }
 
@@ -186,16 +249,8 @@ int Gobang::pos_evaluate(ChessType chessType, int xpos, int ypos){
 }
 
 int Gobang::tuple_evaluate(ChessType chessType, const FiveTuple & fiveTuple){
-	int n = 0;
-	for(int i = 0; i < 5; ++i){
-		if(IS_SAME_TYPE(board[XPOS(fiveTuple[i])][YPOS(fiveTuple[i])], chessType)){
-			++n;
-		}else if(IS_SAME_TYPE(board[XPOS(fiveTuple[i])][YPOS(fiveTuple[i])], OPP(chessType))){
-			n = 0;
-			break;
-		}
-	}
-	return shape_score[n];
+	ShapeType shapeType = tuple_shape_type(chessType, fiveTuple);
+	return shape_score[shapeType];
 }
 
 int Gobang::greedy_select(){
@@ -318,13 +373,17 @@ void Gobang::minmax_v2(int depth, MinmaxNode & node, int alpha, int beta){
 		return;
 	}
 	if(depth == 0){
-		node.value = node.evalue;
+		// node.value = node.evalue;
+		minmax_kill(6, node, alpha, beta);
+		if(computer != node.win) {
+ 			node.value = node.evalue;
+		}
 		return;
 	}
 	std::vector<int> list(openlist.begin(), openlist.end());
 	std::vector<MinmaxNode> subnodes;
 	for(int pos : list){
-// #define ZOBRIST
+#define ZOBRIST
 #ifdef ZOBRIST
 		fill_board(OPP(node.type), XPOS(pos), YPOS(pos));
 		__int64 nZob = cur_zobrist;
@@ -348,6 +407,7 @@ void Gobang::minmax_v2(int depth, MinmaxNode & node, int alpha, int beta){
 		subnodes.emplace_back(OPP(node.type), pos, node.evalue + (neva - peva));
 #endif
 	}
+	// std::cout << subnodes.size() << std::endl;
 	std::sort(subnodes.begin(), subnodes.end());
 	int size = subnodes.size();
 	int n = std::min(10, size);
@@ -391,13 +451,107 @@ void Gobang::minmax_v2(int depth, MinmaxNode & node, int alpha, int beta){
 	}
 }
 
+void Gobang::minmax_kill(int depth, MinmaxNode & node, int alpha, int beta){
+	if(check_win(node.type, XPOS(node.pos), YPOS(node.pos))){
+		node.value = node.evalue;
+		node.win = node.type;
+		return;
+	}
+	if(depth == 0){
+		node.value = node.evalue;
+		// minmax_kill(2, node, alpha, beta);
+		return;
+	}
+	std::vector<int> list(openlist.begin(), openlist.end());
+	std::vector<MinmaxNode> subnodes;
+	for(int pos : list){
+#define ZOBRIST
+#ifdef ZOBRIST
+		fill_board(OPP(node.type), XPOS(pos), YPOS(pos));
+		if(!is_kill_pos(OPP(node.type), XPOS(pos), YPOS(pos)) && !is_defend_pos(OPP(node.type), XPOS(pos), YPOS(pos))){
+			unfill_board_back(XPOS(pos), YPOS(pos));
+			// std::cout << "continue" <<std::endl;
+			continue;
+		}
+		__int64 nZob = cur_zobrist;
+		int evalue = node.evalue;
+		if(evalMap.count(nZob) != 0){
+			unfill_board_back(XPOS(pos), YPOS(pos));
+			evalue = evalMap[nZob];
+		}else{
+			int neva = pos_evaluate(computer, XPOS(pos), YPOS(pos)) - pos_evaluate(player, XPOS(pos), YPOS(pos));
+			unfill_board_back(XPOS(pos), YPOS(pos));
+			int peva = pos_evaluate(computer, XPOS(pos), YPOS(pos)) - pos_evaluate(player, XPOS(pos), YPOS(pos));
+			evalue += neva - peva;
+			evalMap[nZob] = evalue;
+		}
+		subnodes.emplace_back(OPP(node.type), pos, evalue);
+#else
+		int peva = pos_evaluate(computer, XPOS(pos), YPOS(pos)) - pos_evaluate(player, XPOS(pos), YPOS(pos));
+		fill_board(OPP(node.type), XPOS(pos), YPOS(pos));
+		int neva = pos_evaluate(computer, XPOS(pos), YPOS(pos)) - pos_evaluate(player, XPOS(pos), YPOS(pos));
+		unfill_board_back(XPOS(pos), YPOS(pos));
+		subnodes.emplace_back(OPP(node.type), pos, node.evalue + (neva - peva));
+#endif
+	}
+	if(subnodes.empty()) {
+		// std::cout << "no" <<std::endl;
+		node.value = node.evalue;
+		// minmax_kill(2, node, alpha, beta);
+		return;
+	}
+	// std::cout << subnodes.size() << std::endl;
+	std::sort(subnodes.begin(), subnodes.end());
+	int size = subnodes.size();
+	int n = std::min(5, size);
+	if(node.type == computer){ // MIN
+		node.value = INT_MAX;
+		for(int i = 0; i < n; ++i){
+			fill_board(subnodes[i].type, XPOS(subnodes[i].pos), YPOS(subnodes[i].pos));
+			std::set<int> oldlist = extend_openlist(XPOS(subnodes[i].pos), YPOS(subnodes[i].pos));
+			minmax_kill(depth - 1, subnodes[i], INT_MIN, beta);
+			unfill_board_back(XPOS(subnodes[i].pos), YPOS(subnodes[i].pos));
+			openlist = oldlist;
+			if((node.value > subnodes[i].value)){
+				node.value = subnodes[i].value;
+				node.next_best = subnodes[i].pos;
+				node.win = subnodes[i].win;
+			}
+			beta = std::min(beta, node.value);
+			if(beta < alpha){
+				break;
+			}
+		}
+	}else if(node.type == player){  //MAX
+		node.value = INT_MIN;
+		for(int i = 1; i <= n; ++i){
+			fill_board(subnodes[size - i].type, XPOS(subnodes[size - i].pos), YPOS(subnodes[size - i].pos));
+			std::set<int> oldlist = extend_openlist(XPOS(subnodes[size - i].pos), YPOS(subnodes[size - i].pos));
+			minmax_kill(depth - 1, subnodes[size - i], alpha, INT_MAX);
+			// traceback
+			unfill_board_back(XPOS(subnodes[size - i].pos), YPOS(subnodes[size - i].pos));
+			openlist = oldlist;
+			if((node.value < subnodes[size - i].value)){
+				node.value = subnodes[size - i].value;
+				node.next_best = subnodes[size - i].pos;
+				node.win = subnodes[size - i].win;
+			}
+			alpha = std::max(alpha, node.value);
+			if(alpha > beta){
+				break;
+			}
+		}
+	}
+}
+
 int Gobang::minmax_select(int pre_pos){
-	int depth = 6;
+	int depth = MINMAX_DEPTH;
 	auto start_time = std::chrono::steady_clock::now();
 	MinmaxNode node(player, pre_pos);
 	node.evalue = total_evaluate(computer) - total_evaluate(player);
 	// minmax_v1(depth, node, INT_MIN, INT_MAX);
 	minmax_v2(depth, node, INT_MIN, INT_MAX);
+	// minmax_kill(depth, node, INT_MIN, INT_MAX);
 	auto end_time = std::chrono::steady_clock::now();
   	auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
  	std::cout <<"Minmax search "<<depth<<" depth, "<<ms<<" ms consume"<<std::endl;
