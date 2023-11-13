@@ -2,7 +2,7 @@
 * @Author: Zhou Yee
 * @Date:   2023-04-09 21:16:54
 * @Last Modified by:   zy
-* @Last Modified time: 2023-05-07 11:49:21
+* @Last Modified time: 2023-11-13 17:22:52
 */
 #include "gobang.h"
 #include "gobangWidget.h"
@@ -37,8 +37,8 @@ int main(int argc, char const *argv[])
 			}
 		}else{
 			// fall_pos = greedy_select();
-			fall_pos = gobang.minmax_select(fall_pos);
-			// fall_pos = gobang.iteration_deeping_search(fall_pos);
+			// fall_pos = gobang.minmax_select(fall_pos);
+			fall_pos = gobang.iteration_deeping_search(fall_pos);
 			bool flag = gobang.fall(cur, XPOS(fall_pos), YPOS(fall_pos));
 			assert(flag);
 		}
